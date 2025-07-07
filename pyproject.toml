@@ -14,12 +14,17 @@ Repository = "https://github.com/qhreul/huggingface-mcp-course"
 "Bug Tracker" = "https://github.com/qhreul/huggingface-mcp-course/issues"
 
 [tool.poetry.dependencies]
+aiohttp = "^3.12"
 fastmcp = "^2.10"
 gradio = "^5.35"
 huggingface_hub = "^0.32"
 python-dotenv = "^1"
 smolagents = "^1.19"
 textblob = "^0.19"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+pytest-asyncio = "^0.21"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
