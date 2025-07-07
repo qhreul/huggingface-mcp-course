@@ -18,6 +18,8 @@ fastmcp = "^2.10"
 gradio = "^5.35"
 huggingface_hub = "^0.32"
 python-dotenv = "^1"
+smolagents = "^1.19"
+textblob = "^0.19"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
