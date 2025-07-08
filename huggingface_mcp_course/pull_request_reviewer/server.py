@@ -1,8 +1,7 @@
-import aiofiles
-from datetime import datetime
+from dotenv import load_dotenv
 import json
-from pathlib import Path
 import os
+import requests
 import subprocess
 import traceback
 from typing import Optional
@@ -11,6 +10,8 @@ from mcp.server.fastmcp import FastMCP
 
 from huggingface_mcp_course.pull_request_reviewer.webhook_server import EVENTS_FILE
 from huggingface_mcp_course.utils import ioutils
+
+load_dotenv()
 
 # Directory containing Markdown Templates for Pull Requests depending on type of changes
 PR_TEMPLATES_DIR = 'huggingface_mcp_course/pull_request_reviewer/templates'
@@ -247,6 +248,45 @@ async def get_workflow_status(workflow_name: Optional[str] = None) -> str:
 
     return json.dumps(list(workflows.values()), indent=2)
 
+# ===== Module 3 Tools: Slack Integration Tools =====
+@mcp.tool()
+async def send_slack_notification(message: str) -> str:
+    """
+    Send a formatted notification to the team Slack channel.
+    :param message: The message to send to Slack (supports Slack markdown)
+    :return:
+    """
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        return generate_error_response("SLACK_WEBHOOK_URL environment variable not set")
+
+    try:
+        # Prepare the payload with proper Slack formatting
+        payload = {
+            "text": message,
+            "mrkdwn": True
+        }
+        # Send POST request to Slack webhook
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return "Message sent successfully to Slack"
+        else:
+            return generate_error_response(response.text, code=response.status_code)
+
+    except requests.exceptions.Timeout:
+        return generate_error_response("Request timed out. Check your internet connection and try again.",
+                                       code=408)
+    except requests.exceptions.ConnectionError:
+        return generate_error_response("Connection error. Check your internet connection and webhook URL.",
+                                       code=503)
+    except Exception as e:
+        return generate_error_response(f'Error sending message: {str(e)}')
+
 # ===== Module 2: MCP Prompts =====
 @mcp.prompt()
 async def analyze_ci_results() -> str:
@@ -381,9 +421,72 @@ async def troubleshoot_workflow_failure() -> str:
     - [Relevant documentation links]
     - [Similar issues or solutions]"""
 
+# ===== Module 3: Slack Formatting Prompts =====
+@mcp.prompt()
+async def format_ci_failure_alert():
+    """
+    Create a Slack alert for CI/CD failures with rich formatting.
+    :return: A string that helps with alerting of CI/CD failures
+    """
+    return """"Format this GitHub Actions failure as a Slack message using ONLY Slack markdown syntax:
+
+    :rotating_light: *CI Failure Alert* :rotating_light:
+    A CI workflow has failed:
+    *Workflow*: workflow_name
+    *Branch*: branch_name
+    *Status*: Failed
+    *View Details*: <https://github.com/test/repo/actions/runs/123|View Logs>
+
+    Please check the logs and address any issues.
+
+    CRITICAL: Use EXACT Slack link format: <https://full-url|Link Text>
+    Examples:
+    - CORRECT: <https://github.com/user/repo|Repository>
+    - WRONG: [Repository](https://github.com/user/repo)
+    - WRONG: https://github.com/user/repo
+
+    Slack formatting rules:
+    - *text* for bold (NOT **text**)
+    - `text` for code
+    - > text for quotes
+    - Use simple bullet format without special characters
+    - :emoji_name: for emojis"""
+
+@mcp.prompt()
+async def format_ci_success_summary():
+    """
+    "Create a Slack message celebrating successful deployments.
+    :return: A string that helps with celebrating successful deployments
+    """
+    return """Format this successful GitHub Actions run as a Slack message using ONLY Slack markdown syntax:
+
+    :white_check_mark: *Deployment Successful* :white_check_mark:
+    Deployment completed successfully for [Repository Name]
+
+    *Changes:*
+    - Key feature or fix 1
+    - Key feature or fix 2
+
+    *Links:*
+    <https://github.com/user/repo|View Changes>
+
+    CRITICAL: Use EXACT Slack link format: <https://full-url|Link Text>
+    Examples:
+    - CORRECT: <https://github.com/user/repo|Repository>
+    - WRONG: [Repository](https://github.com/user/repo)
+    - WRONG: https://github.com/user/repo
+
+    Slack formatting rules:
+    - *text* for bold (NOT **text**)
+    - `text` for code
+    - > text for quotes
+    - Use simple bullet format with - or *
+    - :emoji_name: for emojis"""
+
 
 if __name__ == "__main__":
     print("Starting Pull Request Agent MCP server...")
+    print("Make sure to set SLACK_WEBHOOK_URL environment variable")
     print("To receive GitHub webhooks, run the webhook server separately:")
     print("  python webhook_server.py")
     mcp.run()
