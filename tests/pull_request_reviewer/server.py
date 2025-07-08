@@ -36,6 +36,26 @@ class TestAnalyzeFileChanges:
     """Test the analyze_file_changes tool."""
 
     @pytest.mark.asyncio
+    async def test_analyze_with_diff(self):
+        """Test analyzing changes with full diff included."""
+        mock_result = MagicMock()
+        mock_result.stdout = "M\tfile1.py\nA\tfile2.py\n"
+        mock_result.stderr = ""
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = mock_result
+
+            result = await analyze_file_changes("main", include_diff=True)
+
+            assert isinstance(result, str)
+            data = json.loads(result)
+            assert data["base_branch"] == "main"
+            assert "files_changed" in data
+            assert "statistics" in data
+            assert "commits" in data
+            assert "diff" in data
+
+    @pytest.mark.asyncio
     async def test_returns_json_string(self):
         """Test that analyze_file_changes returns a JSON string."""
         with patch('subprocess.run') as mock_run:
@@ -193,7 +213,6 @@ class TestSuggestTemplate:
         else:
             # Starter code - just verify it's structured correctly
             assert isinstance(suggestion, dict), "Should return structured error for starter code"
-
 
 @pytest.mark.skipif(not IMPORTS_SUCCESSFUL, reason="Imports failed")
 class TestToolRegistration:
